@@ -1,0 +1,6 @@
+{
+  "name": "NGSL 1.2 English Mastery",
+  "description": "Plataforma inteligente de estudo de inglês baseada na lista NGSL 1.2 (2.809 palavras em 352 grupos) com geração contextual via Gemini API, tradução interativa palavra por palavra, pronúncia por áudio, calendário diário de segunda a sábado e revisão dominical.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

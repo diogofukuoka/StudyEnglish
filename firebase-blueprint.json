@@ -1,0 +1,324 @@
+{
+  "entities": {
+    "UserRoot": {
+      "title": "UserRoot",
+      "description": "Root ownership anchor document for an authenticated learner without PII.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "createdAt", "updatedAt"]
+    },
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Isolated private learner profile containing PII (email and display name).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 320
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "StudyPreferences": {
+      "title": "StudyPreferences",
+      "description": "Active study position, calendar start date, and selected difficulty levels.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "currentGroup": {
+          "type": "integer"
+        },
+        "startDateIso": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "fullSentenceLevel": {
+          "type": "string",
+          "enum": ["simples", "intermediario", "avancado"]
+        },
+        "threeWordLevel": {
+          "type": "string",
+          "enum": ["simples", "intermediario", "avancado"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "currentGroup",
+        "startDateIso",
+        "fullSentenceLevel",
+        "threeWordLevel",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "GroupProgress": {
+      "title": "GroupProgress",
+      "description": "Completion marking for an individual NGSL 1.2 group (1 to 352).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "groupNumber": {
+          "type": "integer"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "groupNumber", "completed", "createdAt", "updatedAt"]
+    },
+    "FullSentenceEntry": {
+      "title": "FullSentenceEntry",
+      "description": "Gemini-generated single English sentence using all words of an NGSL group with token translations.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "groupNumber": {
+          "type": "integer"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["simples", "intermediario", "avancado"]
+        },
+        "sentence": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "translationPt": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "contextNote": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "tokens": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "groupNumber",
+        "level",
+        "sentence",
+        "translationPt",
+        "contextNote",
+        "tokens",
+        "createdAt"
+      ]
+    },
+    "ThreeWordStoryEntry": {
+      "title": "ThreeWordStoryEntry",
+      "description": "Gemini-generated connected sequence of 3-word sentences for every word in an NGSL group.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "groupNumber": {
+          "type": "integer"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["simples", "intermediario", "avancado"]
+        },
+        "storyTitlePt": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "storySummaryPt": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "items": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "groupNumber",
+        "level",
+        "storyTitlePt",
+        "storySummaryPt",
+        "items",
+        "createdAt"
+      ]
+    },
+    "SundayScoreEntry": {
+      "title": "SundayScoreEntry",
+      "description": "Weekly Sunday review retention score and attempt count per week (1 to 59).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "weekNumber": {
+          "type": "integer"
+        },
+        "bestScorePct": {
+          "type": "integer"
+        },
+        "lastScorePct": {
+          "type": "integer"
+        },
+        "attemptsCount": {
+          "type": "integer"
+        },
+        "lastMode": {
+          "type": "string",
+          "enum": ["flash-quiz", "ai-contextual"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "weekNumber",
+        "bestScorePct",
+        "lastScorePct",
+        "attemptsCount",
+        "lastMode",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SundayAiQuizEntry": {
+      "title": "SundayAiQuizEntry",
+      "description": "Gemini-generated Sunday contextual gap-fill quiz saved for weekly review.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "weekNumber": {
+          "type": "integer"
+        },
+        "weekGroups": {
+          "type": "array"
+        },
+        "questions": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "weekNumber", "weekGroups", "questions", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserRoot" },
+      "description": "Root anchor document for each learner."
+    },
+    "/users/{userId}/private/{profileId}": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Private PII subcollection restricted strictly to the owner."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/StudyPreferences" },
+      "description": "User study preferences including current group, start date, and level selections."
+    },
+    "/users/{userId}/groupProgress/{groupId}": {
+      "schema": { "$ref": "#/entities/GroupProgress" },
+      "description": "Completion state for each of the 352 NGSL 1.2 study groups."
+    },
+    "/users/{userId}/fullSentences/{sentenceId}": {
+      "schema": { "$ref": "#/entities/FullSentenceEntry" },
+      "description": "Persisted Gemini-generated full-group sentences and word translation tokens."
+    },
+    "/users/{userId}/threeWordStories/{storyId}": {
+      "schema": { "$ref": "#/entities/ThreeWordStoryEntry" },
+      "description": "Persisted Gemini-generated 3-word connected stories for NGSL groups."
+    },
+    "/users/{userId}/sundayScores/{weekId}": {
+      "schema": { "$ref": "#/entities/SundayScoreEntry" },
+      "description": "Persisted Sunday review scores per week."
+    },
+    "/users/{userId}/sundayAiQuizzes/{quizId}": {
+      "schema": { "$ref": "#/entities/SundayAiQuizEntry" },
+      "description": "Persisted Gemini-generated Sunday contextual quizzes per week."
+    }
+  }
+}

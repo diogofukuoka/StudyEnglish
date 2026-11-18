@@ -1,0 +1,368 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Pillar 3: Primitive Helpers ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidLevel(lvl) {
+      return lvl in ['simples', 'intermediario', 'avancado'];
+    }
+
+    function userRootExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    // --- Pillar 2: Validation Blueprints ---
+    function isValidUserRoot(data, userId) {
+      return data.keys().hasAll(['ownerId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrivateProfile(data, userId) {
+      return data.keys().hasAll(['ownerId', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 320
+        && data.displayName is string
+        && data.displayName.size() <= 160
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudyPreferences(data, userId) {
+      return data.keys().hasAll(['ownerId', 'currentGroup', 'startDateIso', 'fullSentenceLevel', 'threeWordLevel', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'currentGroup', 'startDateIso', 'fullSentenceLevel', 'threeWordLevel', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.currentGroup is int
+        && data.currentGroup >= 1
+        && data.currentGroup <= 352
+        && data.startDateIso is string
+        && data.startDateIso.size() == 10
+        && data.startDateIso.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.fullSentenceLevel is string
+        && isValidLevel(data.fullSentenceLevel)
+        && data.threeWordLevel is string
+        && isValidLevel(data.threeWordLevel)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidGroupProgress(data, userId) {
+      return data.keys().hasAll(['ownerId', 'groupNumber', 'completed', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'groupNumber', 'completed', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.groupNumber is int
+        && data.groupNumber >= 1
+        && data.groupNumber <= 352
+        && data.completed is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFullSentence(data, userId) {
+      return data.keys().hasAll(['ownerId', 'groupNumber', 'level', 'sentence', 'translationPt', 'contextNote', 'tokens', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'groupNumber', 'level', 'sentence', 'translationPt', 'contextNote', 'tokens', 'createdAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.groupNumber is int
+        && data.groupNumber >= 1
+        && data.groupNumber <= 352
+        && data.level is string
+        && isValidLevel(data.level)
+        && data.sentence is string
+        && data.sentence.size() >= 1
+        && data.sentence.size() <= 1500
+        && data.translationPt is string
+        && data.translationPt.size() >= 1
+        && data.translationPt.size() <= 1500
+        && data.contextNote is string
+        && data.contextNote.size() <= 1000
+        && data.tokens is list
+        && data.tokens.size() <= 100
+        && (data.tokens.size() == 0 || (data.tokens[0] is map && data.tokens[0].word is string && data.tokens[0].word.size() <= 100))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidThreeWordStory(data, userId) {
+      return data.keys().hasAll(['ownerId', 'groupNumber', 'level', 'storyTitlePt', 'storySummaryPt', 'items', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'groupNumber', 'level', 'storyTitlePt', 'storySummaryPt', 'items', 'createdAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.groupNumber is int
+        && data.groupNumber >= 1
+        && data.groupNumber <= 352
+        && data.level is string
+        && isValidLevel(data.level)
+        && data.storyTitlePt is string
+        && data.storyTitlePt.size() >= 1
+        && data.storyTitlePt.size() <= 250
+        && data.storySummaryPt is string
+        && data.storySummaryPt.size() <= 1000
+        && data.items is list
+        && data.items.size() >= 1
+        && data.items.size() <= 12
+        && data.items[0] is map
+        && data.items[0].sentence is string
+        && data.items[0].sentence.size() <= 200
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSundayScore(data, userId) {
+      return data.keys().hasAll(['ownerId', 'weekNumber', 'bestScorePct', 'lastScorePct', 'attemptsCount', 'lastMode', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'weekNumber', 'bestScorePct', 'lastScorePct', 'attemptsCount', 'lastMode', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.weekNumber is int
+        && data.weekNumber >= 1
+        && data.weekNumber <= 59
+        && data.bestScorePct is int
+        && data.bestScorePct >= 0
+        && data.bestScorePct <= 100
+        && data.lastScorePct is int
+        && data.lastScorePct >= 0
+        && data.lastScorePct <= 100
+        && data.attemptsCount is int
+        && data.attemptsCount >= 1
+        && data.attemptsCount <= 10000
+        && data.lastMode is string
+        && data.lastMode in ['flash-quiz', 'ai-contextual']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSundayAiQuiz(data, userId) {
+      return data.keys().hasAll(['ownerId', 'weekNumber', 'weekGroups', 'questions', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'weekNumber', 'weekGroups', 'questions', 'createdAt'])
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.weekNumber is int
+        && data.weekNumber >= 1
+        && data.weekNumber <= 59
+        && data.weekGroups is list
+        && data.weekGroups.size() >= 1
+        && data.weekGroups.size() <= 6
+        && data.weekGroups[0] is int
+        && data.questions is list
+        && data.questions.size() >= 1
+        && data.questions.size() <= 15
+        && data.questions[0] is map
+        && data.questions[0].sentenceWithBlank is string
+        && data.questions[0].sentenceWithBlank.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserRoot(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserRoot(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt']);
+      allow delete: if false;
+
+      match /private/{profileId} {
+        allow get: if isValidId(userId) && isValidId(profileId) && profileId == 'profile' && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(profileId)
+          && profileId == 'profile'
+          && isOwner(userId)
+          && isValidPrivateProfile(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userRootExists(userId);
+        allow update: if isValidId(userId)
+          && isValidId(profileId)
+          && profileId == 'profile'
+          && isOwner(userId)
+          && isValidPrivateProfile(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt'])
+          && userRootExists(userId);
+        allow delete: if false;
+      }
+
+      match /settings/{settingId} {
+        allow get: if isValidId(userId) && isValidId(settingId) && settingId == 'preferences' && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(settingId)
+          && settingId == 'preferences'
+          && isOwner(userId)
+          && isValidStudyPreferences(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userRootExists(userId);
+        allow update: if isValidId(userId)
+          && isValidId(settingId)
+          && settingId == 'preferences'
+          && isOwner(userId)
+          && isValidStudyPreferences(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['currentGroup', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['startDateIso', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullSentenceLevel', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['threeWordLevel', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['currentGroup', 'startDateIso', 'fullSentenceLevel', 'threeWordLevel', 'updatedAt'])
+          )
+          && userRootExists(userId);
+        allow delete: if false;
+      }
+
+      match /groupProgress/{groupId} {
+        allow get: if isValidId(userId) && isValidId(groupId) && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(groupId)
+          && isOwner(userId)
+          && isValidGroupProgress(incoming(), userId)
+          && string(incoming().groupNumber) == groupId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userRootExists(userId);
+        allow update: if isValidId(userId)
+          && isValidId(groupId)
+          && isOwner(userId)
+          && isValidGroupProgress(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().groupNumber == existing().groupNumber
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'updatedAt'])
+          && userRootExists(userId);
+        allow delete: if isValidId(userId) && isValidId(groupId) && isOwner(userId);
+      }
+
+      match /fullSentences/{sentenceId} {
+        allow get: if isValidId(userId) && isValidId(sentenceId) && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(sentenceId)
+          && isOwner(userId)
+          && isValidFullSentence(incoming(), userId)
+          && incoming().createdAt == request.time
+          && userRootExists(userId);
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(sentenceId) && isOwner(userId);
+      }
+
+      match /threeWordStories/{storyId} {
+        allow get: if isValidId(userId) && isValidId(storyId) && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(storyId)
+          && isOwner(userId)
+          && isValidThreeWordStory(incoming(), userId)
+          && incoming().createdAt == request.time
+          && userRootExists(userId);
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(storyId) && isOwner(userId);
+      }
+
+      match /sundayScores/{weekId} {
+        allow get: if isValidId(userId) && isValidId(weekId) && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(weekId)
+          && isOwner(userId)
+          && isValidSundayScore(incoming(), userId)
+          && string(incoming().weekNumber) == weekId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userRootExists(userId);
+        allow update: if isValidId(userId)
+          && isValidId(weekId)
+          && isOwner(userId)
+          && isValidSundayScore(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().weekNumber == existing().weekNumber
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().attemptsCount >= existing().attemptsCount
+          && incoming().bestScorePct >= existing().bestScorePct
+          && incoming().diff(existing()).affectedKeys().hasOnly(['bestScorePct', 'lastScorePct', 'attemptsCount', 'lastMode', 'updatedAt'])
+          && userRootExists(userId);
+        allow delete: if false;
+      }
+
+      match /sundayAiQuizzes/{quizId} {
+        allow get: if isValidId(userId) && isValidId(quizId) && isOwner(userId);
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(quizId)
+          && isOwner(userId)
+          && isValidSundayAiQuiz(incoming(), userId)
+          && incoming().createdAt == request.time
+          && userRootExists(userId);
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(quizId) && isOwner(userId);
+      }
+    }
+  }
+}
