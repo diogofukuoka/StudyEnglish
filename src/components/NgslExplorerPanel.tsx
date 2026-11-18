@@ -61,7 +61,7 @@ export const NgslExplorerPanel: React.FC<NgslExplorerPanelProps> = ({
 
           <div className="flex items-center gap-3 shrink-0">
             <a
-              href="/assets/aistudio/NGSL_1.2_50f502bc.pdf"
+              href={`${import.meta.env.BASE_URL}assets/aistudio/NGSL_1.2_50f502bc.pdf`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors whitespace-nowrap shrink-0"

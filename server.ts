@@ -27,6 +27,16 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
 
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   // 1. Generate a cohesive sentence incorporating ALL words of the selected NGSL group
   app.post('/api/gemini/full-sentence', async (req, res) => {
     try {

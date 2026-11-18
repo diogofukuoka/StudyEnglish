@@ -29,6 +29,7 @@ import {
   NgslWord,
 } from './data/ngslData';
 import { speakEnglishText } from './utils/speech';
+import { postGeminiApi } from './utils/api';
 import { InteractiveSentence, WordTokenData } from './components/InteractiveSentence';
 import { SmartCalendarPanel } from './components/SmartCalendarPanel';
 import { SundayReviewPanel, AiContextualQuestion } from './components/SundayReviewPanel';
@@ -80,6 +81,22 @@ const STORAGE_KEY_SUNDAY_SCORES = 'ngsl_sunday_scores_v1';
 const STORAGE_KEY_CURRENT_GROUP = 'ngsl_current_group_v1';
 const STORAGE_KEY_AI_CACHE = 'ngsl_ai_cache_v1';
 
+function safeGetStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage quota or restricted storage errors
+  }
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('estudo');
 
@@ -101,14 +118,14 @@ export default function App() {
 
   // Persisted user study state (initialized from localStorage, seamlessly synced to Firestore when signed in)
   const [currentGroup, setCurrentGroup] = useState<number>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_CURRENT_GROUP);
+    const saved = safeGetStorage(STORAGE_KEY_CURRENT_GROUP);
     const parsed = saved ? parseInt(saved, 10) : 1;
     return parsed >= 1 && parsed <= TOTAL_GROUPS ? parsed : 1;
   });
 
   const [completedGroups, setCompletedGroups] = useState<number[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_COMPLETED);
+      const saved = safeGetStorage(STORAGE_KEY_COMPLETED);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -116,7 +133,7 @@ export default function App() {
   });
 
   const [startDateIso, setStartDateIso] = useState<string>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_START_DATE);
+    const saved = safeGetStorage(STORAGE_KEY_START_DATE);
     if (saved) return saved;
     const now = new Date();
     const day = now.getDay();
@@ -127,7 +144,7 @@ export default function App() {
 
   const [sundayScores, setSundayScores] = useState<Record<number, number>>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_SUNDAY_SCORES);
+      const saved = safeGetStorage(STORAGE_KEY_SUNDAY_SCORES);
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
@@ -144,7 +161,7 @@ export default function App() {
     threeWordStories: Record<string, ThreeWordStoryResponse>;
   }>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_AI_CACHE);
+      const saved = safeGetStorage(STORAGE_KEY_AI_CACHE);
       return saved ? JSON.parse(saved) : { fullSentences: {}, threeWordStories: {} };
     } catch {
       return { fullSentences: {}, threeWordStories: {} };
@@ -272,7 +289,11 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
-      if (err?.code !== 'auth/popup-closed-by-user') {
+      if (err?.code === 'auth/unauthorized-domain') {
+        setCloudError(
+          `Domínio "${window.location.hostname}" não autorizado no Firebase Authentication. Adicione este domínio em Firebase Console → Authentication → Settings → Authorized domains.`
+        );
+      } else if (err?.code !== 'auth/popup-closed-by-user') {
         setCloudError(err?.message || 'Não foi possível concluir o login com Google.');
       }
     } finally {
@@ -290,27 +311,23 @@ export default function App() {
 
   // Sync to localStorage as local mirror
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_CURRENT_GROUP, String(currentGroup));
+    safeSetStorage(STORAGE_KEY_CURRENT_GROUP, String(currentGroup));
   }, [currentGroup]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_COMPLETED, JSON.stringify(completedGroups));
+    safeSetStorage(STORAGE_KEY_COMPLETED, JSON.stringify(completedGroups));
   }, [completedGroups]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_START_DATE, startDateIso);
+    safeSetStorage(STORAGE_KEY_START_DATE, startDateIso);
   }, [startDateIso]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_SUNDAY_SCORES, JSON.stringify(sundayScores));
+    safeSetStorage(STORAGE_KEY_SUNDAY_SCORES, JSON.stringify(sundayScores));
   }, [sundayScores]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_AI_CACHE, JSON.stringify(aiCache));
-    } catch {
-      // Ignore storage quota overflow
-    }
+    safeSetStorage(STORAGE_KEY_AI_CACHE, JSON.stringify(aiCache));
   }, [aiCache]);
 
   const currentGroupWords: NgslWord[] = useMemo(
@@ -412,10 +429,9 @@ export default function App() {
     setErrorFull(null);
 
     try {
-      const response = await fetch('/api/gemini/full-sentence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await postGeminiApi<FullSentenceResponse>(
+        '/api/gemini/full-sentence',
+        {
           groupNumber: currentGroup,
           level: targetLevel,
           words: currentGroupWords.map((w) => ({
@@ -423,13 +439,8 @@ export default function App() {
             pos: w.pos,
             pt: w.pt,
           })),
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'Erro ao gerar a frase completa do grupo.');
-      }
+        }
+      );
 
       const cacheKey = `${currentGroup}_${targetLevel}`;
       setAiCache((prev) => ({
@@ -465,10 +476,9 @@ export default function App() {
     setErrorThreeWord(null);
 
     try {
-      const response = await fetch('/api/gemini/three-word-story', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await postGeminiApi<ThreeWordStoryResponse>(
+        '/api/gemini/three-word-story',
+        {
           groupNumber: currentGroup,
           level: targetLevel,
           words: currentGroupWords.map((w) => ({
@@ -476,13 +486,8 @@ export default function App() {
             pos: w.pos,
             pt: w.pt,
           })),
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'Erro ao gerar as frases conectadas de 3 palavras.');
-      }
+        }
+      );
 
       const cacheKey = `${currentGroup}_${targetLevel}`;
       setAiCache((prev) => ({
@@ -1482,7 +1487,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <a
-              href="/assets/aistudio/NGSL_1.2_50f502bc.pdf"
+              href={`${import.meta.env.BASE_URL}assets/aistudio/NGSL_1.2_50f502bc.pdf`}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-slate-900 transition-colors"

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { NGSL_GROUPS, NgslWord, NGSL_WORDS } from '../data/ngslData';
 import { speakEnglishText } from '../utils/speech';
+import { postGeminiApi } from '../utils/api';
 import { InteractiveSentence } from './InteractiveSentence';
 import { SundayAiQuizData } from '../services/studyFirestoreService';
 
@@ -186,10 +187,9 @@ export const SundayReviewPanel: React.FC<SundayReviewModalProps> = ({
     setIsFinished(false);
 
     try {
-      const response = await fetch('/api/gemini/sunday-review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await postGeminiApi<{ questions?: AiContextualQuestion[] }>(
+        '/api/gemini/sunday-review',
+        {
           groups: weekGroups,
           words: weekWords.map((w) => ({
             group: w.group,
@@ -197,12 +197,8 @@ export const SundayReviewPanel: React.FC<SundayReviewModalProps> = ({
             pos: w.pos,
             pt: w.pt,
           })),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'Falha ao gerar revisão contextual com Gemini.');
-      }
+        }
+      );
       const generatedQuestions: AiContextualQuestion[] = data.questions || [];
       setLocalAiQuestions(generatedQuestions);
       setSelectedSavedQuizIdx(0);
