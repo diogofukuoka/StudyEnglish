@@ -212,17 +212,23 @@ export default function App() {
         unsubFirestore = null;
       }
 
-      setUser(firebaseUser);
-      setAuthReady(true);
-      setCloudError(null);
-
-      if (!firebaseUser) {
+      if (!firebaseUser || firebaseUser.isAnonymous || !firebaseUser.emailVerified) {
+        if (firebaseUser && firebaseUser.isAnonymous) {
+          void signOut(auth).catch(() => {});
+        }
+        setUser(null);
+        setAuthReady(true);
+        setCloudError(null);
         setCloudReady(false);
         setCloudFullSentences([]);
         setCloudThreeWordStories([]);
         setCloudSundayQuizzes([]);
         return;
       }
+
+      setUser(firebaseUser);
+      setAuthReady(true);
+      setCloudError(null);
 
       try {
         const seed = localSeedRef.current;
