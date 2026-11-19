@@ -6,7 +6,7 @@ import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 
 dotenv.config();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 function getAiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -23,18 +23,65 @@ function getAiClient() {
   });
 }
 
+async function generateStructuredJson(
+  ai: GoogleGenAI,
+  prompt: string,
+  responseSchema: Record<string, unknown>
+): Promise<any> {
+  const modelsToTry = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const config: Record<string, unknown> = {
+        responseMimeType: 'application/json',
+        responseSchema,
+      };
+      if (model === 'gemini-4-hydrogen') {
+        config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+      }
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config,
+      });
+      const jsonText = (response.text ?? '{}').trim();
+      return JSON.parse(jsonText);
+    } catch (error: any) {
+      lastError = error;
+      const msg = String(error?.message || error || '');
+      const isTransient =
+        msg.includes('503') ||
+        msg.includes('UNAVAILABLE') ||
+        msg.includes('high demand') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED');
+      if (!isTransient) {
+        throw error;
+      }
+      console.warn(`Transient error on ${model}, trying fallback...`, msg);
+    }
+  }
+
+  throw lastError || new Error('Serviço Gemini temporariamente indisponível. Tente novamente em instantes.');
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
 
   app.use('/api', (req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(204);
     }
     next();
+  });
+
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', hasGeminiKey: Boolean(process.env.GEMINI_API_KEY) });
   });
 
   // 1. Generate a cohesive sentence incorporating ALL words of the selected NGSL group
@@ -70,15 +117,9 @@ Regras obrigatórias:
 1. Você DEVE incluir todas as ${words.length} palavras da lista na mesma frase (você pode usar a forma base/lema ou uma flexão mínima caso estritamente necessário para a gramática, mas dê preferência absoluta à forma exata do lema).
 2. Forneça a frase completa em inglês ("sentence"), a tradução natural completa para o português do Brasil ("translationPt"), uma breve nota explicativa sobre a estrutura e o contexto ("contextNote"), e um array "tokens" contendo CADA palavra da frase gerada na ordem exata, com sua tradução específica para o português neste contexto ("pt"), sua classe gramatical ("pos"), o lema NGSL correspondente se for uma das palavras do grupo ("targetLemma", ou string vazia se não for do grupo), e se faz parte do grupo ("isTargetWord": true/false).`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
+      const parsed = await generateStructuredJson(ai, prompt, {
+        type: Type.OBJECT,
+        properties: {
               sentence: {
                 type: Type.STRING,
                 description: 'The complete English sentence containing all words from the group.',
@@ -127,12 +168,7 @@ Regras obrigatórias:
               },
             },
             required: ['sentence', 'translationPt', 'contextNote', 'tokens'],
-          },
-        },
       });
-
-      const jsonText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(jsonText);
       return res.json(parsed);
     } catch (error: any) {
       console.error('Error in /api/gemini/full-sentence:', error);
@@ -183,15 +219,9 @@ Regras ESTRITAS e OBRIGATÓRIAS:
 4. As frases devem ter ligação narrativa/contextual entre si (a frase 1 conecta com a 2, que conecta com a 3, etc.) para que o aluno compreenda a sequência.
 5. Para cada frase de 3 palavras, retorne também a tradução da frase para o português ("translationPt"), a explicação rápida de como ela se liga ao contexto ("connectionNote"), e o array "tokens" com as 3 palavras detalhadas (word, cleanWord, pt, pos, isTargetWord).`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
+      const parsed = await generateStructuredJson(ai, prompt, {
+        type: Type.OBJECT,
+        properties: {
               storyTitlePt: {
                 type: Type.STRING,
                 description: 'A short title in Portuguese summarizing the connected context of these 3-word sentences.',
@@ -243,12 +273,7 @@ Regras ESTRITAS e OBRIGATÓRIAS:
               },
             },
             required: ['storyTitlePt', 'storySummaryPt', 'items'],
-          },
-        },
       });
-
-      const jsonText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(jsonText);
       return res.json(parsed);
     } catch (error: any) {
       console.error('Error in /api/gemini/three-word-story:', error);
@@ -286,15 +311,9 @@ Para cada questão:
 - Forneça 4 opções em inglês (sendo 1 correta e 3 distratores plausíveis da própria lista).
 - Indique a resposta correta ("correctWord") e uma breve explicação em português ("explanationPt").`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
+      const parsed = await generateStructuredJson(ai, prompt, {
+        type: Type.OBJECT,
+        properties: {
               questions: {
                 type: Type.ARRAY,
                 items: {
@@ -322,12 +341,7 @@ Para cada questão:
               },
             },
             required: ['questions'],
-          },
-        },
       });
-
-      const jsonText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(jsonText);
       return res.json(parsed);
     } catch (error: any) {
       console.error('Error in /api/gemini/sunday-review:', error);
